@@ -10,17 +10,15 @@
 	Title: 		1_cleaning_<date>.do
 
 
- 	Outline: 	This do-file cleans the Tanzania BL data section:
+ 	Outline: 	This do-file cleans the data section:
 				- Label variables and values
-				- Fix "other, specify", if applicable
 				- Create variables
 				- Create long rosters, if applicable
-				- Logic checks and assertions
 
 
- 	Input: 		Soft Skills Tanzania Self Report Baseline_noPII.dta
+ 	Input: 		.....dta
 
-	Output:		SES_Tan_Clean_<date>.dta
+	Output:		...dta
 
 
 	Created by: Elijah Kipchumba on 10 Oct 2022
