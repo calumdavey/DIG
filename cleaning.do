@@ -673,15 +673,25 @@ use "Data/DIG Household Panel Wide.dta", clear
 	gen ngo_cash=(s87a_6==1)
 	gen ngo_noncash=(s87a_7==1)
 
-*treatment status
-	gen treat=(assign==1)
+* =============================================================================================== *
+* Treatment status
+* =============================================================================================== *
+
+* !! SCRAMBLED FOR PRE-SPECIFICATION !! *
+
+	*gen treat = (assign == 1)
+	set seed 180922
+	gen treat = runiformint(0, 1)
 	label var treat "DIG"
+
 	gen pwd_hh=(hhpwd==1)
 	label var hhpwd "HH has PWD" // as per baseline survey
+
 	gen treatXpwd_hh=treat*pwd_hh
 	label var treatXpwd_hh "DIG X HH PWD"
-	gen pwd_s=(eligible_pwd==1)
-	gen treatXpwd_s=treat*pwd_s
+
+	gen pwd_s = (eligible_pwd == 1)
+	gen treatXpwd_s = treat * pwd_s
 	label var pwd_s "HH has PWD" // as per beneficiary selection
 
 save "Data/DIG Household Panel Wide Clean.dta", replace
