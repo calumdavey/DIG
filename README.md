@@ -5,4 +5,4 @@
 
 ## Analysis files 
 
-* Written in R (RMarkdown) for reproducibility 
+* Written in R (RMarkdown) for reproducibility  
