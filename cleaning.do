@@ -76,8 +76,8 @@ use "Data/DIG Household Panel Wide.dta", clear
 	replace resp_lino=lino if follow==0 // Order was randomized after baseline, so recovering baseline order
 	keep if s215==resp_lino //s215 is who is the respondent, as a line number 
 
-	replace s213_=22 if s213_==18 //PhD.  ----!> WHAT IS THIS?
-	replace s213_=18 if s213_==17 //Masters ----!> WHAT IS THIS?
+	replace s213_=22 if s213_==18 //PhD. 
+	replace s213_=18 if s213_==17 //Masters
 	replace s213_=. if s213_==99 //Dont know
 
 	* Create new resp_ var for all the vars, that are only populated if s215 = resp_lino 
@@ -273,16 +273,19 @@ use "Data/DIG Household Panel Wide.dta", clear
 	gen percapitaexpenditure = hh_expenditure / tot_hhmem_num // divide by the number of people in the household
 	label var percapitaexpenditure "Per-capita annual household consumption expenditure"
 
-	egen farm_expenses = rowtotal(s58b_* s57i_* s510b_*) // --!> WHERE DOES THIS FIT?
-	label var hh_expenditure "Annual farm expenditure"
-
 	* Recode 5% extremes to less extreme values 
-	foreach var of varlist food_expenses recurrent_expenses infrequent_expenses hh_expenditure percapitaexpenditure farm_expenses {
+	foreach var of varlist food_expenses recurrent_expenses infrequent_expenses hh_expenditure percapitaexpenditure {
 		winsor `var', gen(`var'_w) highonly p(0.05)
 		local label : variable label `var'
 		label variable `var'_w "Winsorized - `label'"
 		order `var'_w, before(`var')
 	}
+
+* Secondary outcome : Farm investment [NEW]
+* ------------------------------------------------------------------
+egen farm_expenses = rowtotal(s58b_* s57i_* s510b_*)
+label var hh_expenditure "Annual farm expenditure"
+
 
 * Secondary outcome : Monthly household income from agricultural 
 *      				  and non-agricultural sources (household level)
@@ -307,7 +310,7 @@ use "Data/DIG Household Panel Wide.dta", clear
 	foreach var of varlist numan chicken sheep goat pig cow anidex* {
 		quietly destring `var', replace force
 		}
-	egen numan_n = rownonmiss(anidex*)
+	egen numan_n = rownonmiss(anidex*) // number of animals
 	replace numan = numan_n
 	drop numan_n 
 
