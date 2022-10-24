@@ -403,7 +403,7 @@ drop r_s58b_* r_s57i_* r_s510b_*
 
 	quietly sum numan
 	local i=1
-		while `i'<=r(max){
+		while `i'<=7 {
 		replace sheep=1 if anidex_`i'==2 & s59a_`i'!=. & s59a_`i'>0
 		replace sale_sheep=sale_s59j_`i' if anidex_`i'==2
 		local i=`i'+1
