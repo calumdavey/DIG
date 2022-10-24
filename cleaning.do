@@ -247,10 +247,17 @@ use "Data/DIG Household Panel Wide.dta", clear
 * ---------------------------------------
 
 * Food consumption coding:
+
 	local i=1
 		while `i'<=33{
-		gen buy_s42e_`i'=0
-		replace buy_s42e_`i' = s42e_`i' * s42c_`i' if s42a_`i' == 1
+			gen r_s42e_`i'=s42e_`i'
+			mvdecode r_s42e_`i', mv(98 99 999)
+			by follow branch s42d_`i', sort: egen median_r_s42e_`i' = median(r_s42e_`i')
+			replace r_s42e_`i'=median_r_s42e_`i' if s42d_`i'!=. & r_s42e_`i'==. // Replace missing cost with branch market median
+			gen r_s42c_`i'=s42c_`i'
+			mvdecode r_s42c_`i', mv(98 99 999)
+			gen buy_s42e_`i'=r_s42e_`i' * r_s42c_`i' if s42a_`i'==1
+			drop median_r_s42e_`i' r_s42e_`i' r_s42c_`i'
 		local i=`i'+1
 		}
 
@@ -259,12 +266,24 @@ use "Data/DIG Household Panel Wide.dta", clear
 	label var food_expenses "Monthly food expenditure"
 
 * Non-food recurrent and infrequent expenses
+	foreach var of varlist s43_b_* {
+		gen r_`var'=`var'
+		mvdecode r_`var', mv(98 99 999)
+	}
+	
 	egen recurrent_expenses    = rowtotal(s43_b_*) // sum the recurrent non-food expenses
 	label var recurrent_expenses "Monthly non-food recurrent expenditure"
+	drop r_s43_b_*
 
+	foreach var of varlist s44_b_* {
+	gen r_`var'=`var'
+	mvdecode r_`var', mv(98 99)
+	}
+	
 	egen infrequent_expenses = rowtotal(s44_b_*) // sum the infrequent non-food expenses, measured over the year 
 	replace infrequent_expenses = infrequent_expenses / 12 // Monthly infrequent expenses
-	label var infrequent_expenses "Annual infrequent expenditure"
+	label var infrequent_expenses "Monthly infrequent expenditure"
+	drop r_s44_b_*
 
 	egen hh_expenditure = rowtotal(food_expenses recurrent_expenses infrequent_expenses) // --!> Where does home improvements fit? s318
 	label var hh_expenditure "Annual household consumption expenditure" 
@@ -282,8 +301,22 @@ use "Data/DIG Household Panel Wide.dta", clear
 
 * Secondary outcome : Farm investment [NEW]
 * ------------------------------------------------------------------
+foreach var of varlist s58b_* s57i_* s510b_* {
+	gen r_`var'=`var'
+	mvdecode r_`var', mv(98 99 999)
+}
+
 egen farm_expenses = rowtotal(s58b_* s57i_* s510b_*)
 label var hh_expenditure "Annual farm expenditure"
+drop r_s58b_* r_s57i_* r_s510b_*
+
+	* Recode 5% extremes to less extreme values 
+	foreach var of varlist farm_expenses {
+		winsor `var', gen(`var'_w) highonly p(0.05)
+		local label : variable label `var'
+		label variable `var'_w "Winsorized - `label'"
+		order `var'_w, before(`var')
+	}
 
 
 * Secondary outcome : Monthly household income from agricultural 
@@ -297,19 +330,18 @@ label var hh_expenditure "Annual farm expenditure"
 	label var nonfarmbusiness "Household has non-farm business"
 
 	foreach var of varlist s622* {
-		gen annual_`var' = 12 * `var'  // --!> DO WE WANT TO ANNUALISE? 
-		local label : variable label `var'
-		label variable annual_`var' "Annual - `label'"
+		gen r_`var'=`var'
+		mvdecode r_`var', mv(98 99 999)
 	}
 
-	egen paid_wage = rowtotal(annual_s622_*)
-	drop annual_s622_*
+	egen paid_wage = rowtotal(r_s622_*)
+	drop r_s622_*
 
-* Animal and animal products sales  --!> I DON'T REALLY UNDERSTAND THIS PART 
+* Animal and animal products sales  --!> I DON'T REALLY UNDERSTAND THIS PART // Whether a household kept a specific animal and if they made a sale from it
 	foreach var of varlist numan chicken sheep goat pig cow anidex* {
 		quietly destring `var', replace force
 		}
-	egen numan_n = rownonmiss(anidex*) // number of animals
+	egen numan_n = rownonmiss(anidex*) // Categories of animals kept
 	replace numan = numan_n
 	drop numan_n 
 
@@ -337,10 +369,12 @@ label var hh_expenditure "Annual farm expenditure"
 
 	quietly sum numan
 	local i = 1
-		while `i' <= r(max){
-		gen sale_s59j_`i' = 0
-		replace sale_s59j_`i' = s59i_`i' * s59j_`i' if s59j_`i' != .
+		while `i' <= 7 {
+		gen r_s59j_`i'=s59j_`i'
+		mvdecode r_s59j_`i', mv(98 99 999)
+		gen sale_s59j_`i' = s59i_`i' * r_s59j_`i' if s59j_`i'!=.
 		order sale_s59j_`i', after(s59j_`i')
+		drop r_s59j_`i'
 		local i = `i' + 1
 		}
 
@@ -351,7 +385,7 @@ label var hh_expenditure "Annual farm expenditure"
 
 	quietly sum numan
 	local i=1
-		while `i'<=r(max){
+		while `i'<=7{
 		replace chicken = 1 if anidex_`i' == 1 & s59a_`i' != . & s59a_`i' > 0
 		replace chicken = 1 if anidex_`i' == 7 & s59a_`i' != . & s59a_`i' > 0
 		replace chicken = 1 if anidex_`i' == 8 & s59a_`i' != . & s59a_`i' > 0
@@ -377,7 +411,7 @@ label var hh_expenditure "Annual farm expenditure"
 
 	quietly sum numan
 	local i=1
-		while `i'<=r(max){
+		while `i'<=7{
 		replace goat=1 if anidex_`i'==3 & s59a_`i'!=. & s59a_`i'>0
 		replace sale_goat=sale_s59j_`i' if anidex_`i'==3
 		local i=`i'+1
@@ -385,7 +419,7 @@ label var hh_expenditure "Annual farm expenditure"
 
 	quietly sum numan
 	local i=1
-		while `i'<=r(max){
+		while `i'<=7{
 		replace pig=1 if anidex_`i'==4 & s59a_`i'!=. & s59a_`i'>0
 		replace sale_pig=sale_s59j_`i' if anidex_`i'==4
 		local i=`i'+1
@@ -393,7 +427,7 @@ label var hh_expenditure "Annual farm expenditure"
 
 	quietly sum numan
 	local i=1
-		while `i'<=r(max){
+		while `i'<=7{
 		replace cow=1 if anidex_`i'==5 & s59a_`i'!=. & s59a_`i'>0
 		replace sale_cow=sale_s59j_`i' if anidex_`i'==5
 		local i=`i'+1
@@ -401,25 +435,30 @@ label var hh_expenditure "Annual farm expenditure"
 
 	drop sale_s59j_*
 
+local i=1
+	while `i'<=3{
+		gen r_s511g_`i'=s511g_`i'
+		mvdecode r_s511g_`i', mv(98 99 999)
+		by follow branch s511c_`i', sort: egen median_r_s511g_`i' = median(r_s511g_`i')
+		replace r_s511g_`i'=median_r_s511g_`i' if s511c_`i'!=. & r_s511g_`i'==. // Replace selling price per unit with branch market median
+		gen r_s511f_`i'=s511f_`i'
+		mvdecode r_s511f_`i', mv(98 99 999)
+		gen sale_s511g_`i'=r_s511g_`i' * r_s511f_`i' if s42a_`i'==1
+		drop median_r_s511g_`i' r_s511g_`i' r_s511f_`i'
+	local i=`i'+1
+	}
+
 	gen sale_milk=0
-	gen sale_eggs=0
 	label var sale_milk "Household earned from milk sales"
-	label var sale_eggs "Household earned from eggs sales"
-
-
-	local i=1
-		while `i'<=3{
-		gen sale_s511g_`i'=0
-		replace sale_s511g_`i'=s511g_`i' * s511f_`i'  if s511g_`i'!=.
-		order sale_s511g_`i', after(s511g_`i')	
-		local i=`i'+1
-		}
 
 	local i=1
 		while `i'<=3{
 		replace sale_milk=sale_s511g_`i' if pos_6j_`i'==1
 		local i=`i'+1
 		}
+
+	gen sale_eggs=0
+	label var sale_eggs "Household earned from eggs sales"
 
 	local i=1
 		while `i'<=3{
@@ -431,6 +470,7 @@ label var hh_expenditure "Annual farm expenditure"
 	drop sale_s511g*
 
 	egen animal_sales = rowtotal(sale_chicken- sale_cow sale_milk sale_eggs)
+	replace animal_sales = animal_sales / 12 // Monthly animal sales
 
 	egen livestock_farmer = anymatch(chicken-cow), values(1)
 	label var livestock_farmer "Household kept livestock or poultry"
@@ -444,18 +484,19 @@ label var hh_expenditure "Annual farm expenditure"
 	drop s52a_count_n 
 
 	egen crop_sales=rowtotal(s52h*)
+	replace crop_sales = crop_sales / 12 // Monthly crop sales
 
 	gen crop_farmer=(s51==1)
 	label var crop_farmer "Household farms crops"
 	
 * Per capita income
-	egen hh_annual_income=rowtotal(animal_sales crop_sales paid_wage)
-	label var hh_annual_income "Household total annual income"
+	egen hh_monthly_income=rowtotal(animal_sales crop_sales paid_wage)
+	label var hh_monthly_income "Household total monthly income"
 
-	gen percapitaincome=hh_annual_income/tot_hhmem_num
-	label var percapitaincome "Per-capita annual household income"
+	gen percapitaincome=hh_monthly_income/tot_hhmem_num
+	label var percapitaincome "Per-capita monthly household income"
 
-	foreach var of varlist animal_sales crop_sales paid_wage hh_annual_income percapitaincome {
+	foreach var of varlist animal_sales crop_sales paid_wage hh_monthly_income percapitaincome {
 		winsor `var', gen(`var'_w) highonly p(0.05)
 		local label : variable label `var'
 		label variable `var'_w "Winsorized - `label'"
@@ -674,6 +715,15 @@ use "Data/DIG Household Panel Wide.dta", clear
 	gen govt_cash=(s87a_4==1)
 	gen ngo_cash=(s87a_6==1)
 	gen ngo_noncash=(s87a_7==1)
+
+* Assets value
+foreach var of varlist s319_*b* {
+	gen r_`var'=`var'
+	mvdecode r_`var', mv(98 99 999)
+	local label : variable label `var'
+	label variable r_`var' "`label'"
+	drop r_`var'
+}
 
 * =============================================================================================== *
 * Treatment status
