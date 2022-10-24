@@ -256,15 +256,14 @@ use "Data/DIG Household Panel Wide.dta", clear
 
 	egen food_expenses = rowtotal(buy_s42e_*) // sum all of the food spending cols
 	drop buy_s42e_* // drops all of the specific food spending vars
-	replace food_expenses = food_expenses * 12 // annualised --!> WHY ARE WE DOING THIS, DO WE NEED TO?
-	label var food_expenses "Annual food expenditure"
+	label var food_expenses "Monthly food expenditure"
 
 * Non-food recurrent and infrequent expenses
 	egen recurrent_expenses    = rowtotal(s43_b_*) // sum the recurrent non-food expenses
-	replace recurrent_expenses = recurrent_expenses * 12 // annualised --!> WHY ARE WE DOING THIS, DO WE NEED TO?
-	label var recurrent_expenses "Annual non-food recurrent expenditure"
+	label var recurrent_expenses "Monthly non-food recurrent expenditure"
 
 	egen infrequent_expenses = rowtotal(s44_b_*) // sum the infrequent non-food expenses, measured over the year 
+	replace infrequent_expenses = infrequent_expenses / 12 // Monthly infrequent expenses
 	label var infrequent_expenses "Annual infrequent expenditure"
 
 	egen hh_expenditure = rowtotal(food_expenses recurrent_expenses infrequent_expenses) // --!> Where does home improvements fit? s318
