@@ -14,10 +14,12 @@ output:
 ```{r, echo = FALSE}
 # Set the knit preferences
  knitr::opts_chunk$set(echo = TRUE, message = FALSE,
-    warning = FALSE, fig.height = 8, fig.width = 6, cache = FALSE)
+    warning = FALSE, fig.height = 8, fig.width = 14, cache = FALSE)
     options(knitr.kable.NA = "")
     options(kableExtra_view_html = F)
+```
 
+```{r, echo = FALSE}
 # Load libraries
  library(haven)       # data loading
  library(data.table)  # data manipulation
@@ -41,12 +43,15 @@ output:
                "index_s213" # Index PWD's highest level of education
     )
  names(covars) <- c(
-    "Index PWD gender",
+    "Index PWD is male",
     "Index PWD's age",
     "Index PWD's marital status",
     "Index PWD's is able to read and write",
     "Index PWD's highest level of education"
  )
+
+# Recode women to 0
+ d$index_s23[d$index_s23 == 2] <- 0
 
 # Keep only relevant variables
  d <- d[, c(outcomes, covars, "resp_lino", "hhid", "follow",
@@ -59,6 +64,9 @@ output:
 
 # Keep only persons with disabilties at baseline --!> TODO!!
  d <- d[, ]
+
+# Remove 999
+ d[d == 999] <- NA
 ```
 
 ```{r}
@@ -74,8 +82,8 @@ summary_cells <- function(v) {
                sum(!is.na(v)), " (",
                round(100 * mean(v, na.rm = T), 0), "%)")
     } else {
-        paste0(format(mean(v, na.rm = T), big.mark = ",", digits = 0), " (",
-               format(sd(v, na.rm = T), big.mark = ",", digits = 0), ")")
+        paste0(format(mean(v, na.rm = T), big.mark = ",", digits = 0, scientific = F), " (",
+               format(sd(v, na.rm = T), big.mark = ",", digits = 0, scientific = F), ")")
     }
 }
 
@@ -87,11 +95,14 @@ effect_estimates <- function(Y, cvars = c("branch_1", "district_1")) {
     m <- lmer(form, data = d)
     s <- summary(m)
     e <- c(s$coefficients["treat_1", 1], confint(m)["treat_1", ])
-    paste0(format(e[1], big.mark = ",", digits = 0), " (",
-           format(e[2], big.mark = ",", digits = 0), " to ",
-           format(e[3], big.mark = ",", digits = 0), ")")
+    paste0(format(e[1], big.mark = ",", digits = 0, scientific = F), " (",
+           format(e[2], big.mark = ",", digits = 0, scientific = F), " to ",
+           format(e[3], big.mark = ",", digits = 0, scientific = F), ")")
 }
 ``` 
+
+* Is there a "this person is disabled at baseline" variable that we can use to restrict the data?
+* Note that the treatment variable has been **scrambled** so these are _not_ the trial results
 
 # TABLES
 ## TABLE 1: balance checks 
@@ -104,19 +115,41 @@ table1 <- d[!is.na(treat_0),
     .SDcols = vars] |>
     t()
 rownames(table1) <- c("", names(vars))
-table1 |>
-    knitr::kable() |>
+table1[2:nrow(table1), ] |>
+    knitr::kable(col.names = c("Control", "DIG Arm")) |>
     kableExtra::kable_paper()
 ```
+
+* Need to recode the categorical variables as dummies for each level
+* What other baseline characteristics should we include?
+
+## Figure 2: histogram of the primary outcome
+
+```{r}
+par(mfrow = c(1, 2))
+hist(d$percapitaincome_1[d$treat_0 == 0])
+hist(d$percapitaincome_1[d$treat_0 == 1])
+```
+
+* Should we trim more? 
 
 ## TABLE 2: effect of the intervention 
 
 ```{r}  
 # Set names of the outcomes at endline
  outcomes_1  <- lapply(outcomes, function(X) paste0(X, "_1"))
-
+            
 # Run the regressions
  effects <- lapply(outcomes_1, effect_estimates) |> unlist()
+ adjusted_effects <- lapply(outcomes_1,
+                                function(Y) {
+                                    effect_estimates(Y,
+                                        cvars = c("branch_1", "district_1", # design vars #nolint
+                                                  "index_s24_0",  # other baseline covariates #nolint
+                                                  paste0(gsub(".{2}$", "", Y), "_0")) # baseline level of the outcome #nolint
+                                            )
+                                        }
+                                      ) |> unlist()
 
 # Combine into a table
  table2 <- d[!is.na(treat_1),
@@ -124,10 +157,9 @@ table1 |>
     by      = treat_1,
     .SDcols = unlist(outcomes_1)] |>
     t() |>
-    cbind(c("", effects))
+    cbind(c("", effects), c("", adjusted_effects))
  rownames(table2) <- c("", names(outcomes))
- table2 |>
-    knitr::kable() |>
+ table2[2:nrow(table2), ] |>
+    knitr::kable(col.names = c("Control", "DIG Arm", "Unadjusted effect", "Adjusted effect")) |>
     kableExtra::kable_paper()
 ```
-
