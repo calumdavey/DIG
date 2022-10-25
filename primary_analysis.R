@@ -58,7 +58,6 @@ effects <- function (var, data = d) {
 # Define list to save the results
 results <- list()
 
-
 # Perform the analysis
 for (Y in outcomes) { # Loop over the multiple outcomes
     model <- glmer(as.formula(

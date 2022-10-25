@@ -1,0 +1,133 @@
+---
+title: "DIG Endline analysis"
+author: "Calum & Elijah"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    code_folding: hide
+    number_sections: true
+    toc: true
+    toc_float:
+      collapsed: false
+---
+
+```{r, echo = FALSE}
+# Set the knit preferences
+ knitr::opts_chunk$set(echo = TRUE, message = FALSE,
+    warning = FALSE, fig.height = 8, fig.width = 6, cache = FALSE)
+    options(knitr.kable.NA = "")
+    options(kableExtra_view_html = F)
+
+# Load libraries
+ library(haven)       # data loading
+ library(data.table)  # data manipulation
+ library(lme4)        # multi-level models
+ library(kableExtra)  # format the tables
+
+# Load data
+ d <- haven::read_dta("Data/DIG Household Panel Wide Clean.dta") |> setDT()
+
+# List the relevant variables
+ outcomes <- c("percapitaexpenditure", # Names of the outcomes
+               "hh_expenditure",
+               "percapitaincome")
+ names(outcomes) <- c("Per capita expenditure",
+                      "HH expenditure",
+                      "Per capita income")
+ covars   <- c("index_s23",  # Index PWD gender
+               "index_s24",  # Index PWD's age
+               "index_s211", # Index PWD's marital status
+               "index_s212", # Index PWD's is able to read and write
+               "index_s213" # Index PWD's highest level of education
+    )
+ names(covars) <- c(
+    "Index PWD gender",
+    "Index PWD's age",
+    "Index PWD's marital status",
+    "Index PWD's is able to read and write",
+    "Index PWD's highest level of education"
+ )
+
+# Keep only relevant variables
+ d <- d[, c(outcomes, covars, "resp_lino", "hhid", "follow",
+            "treat", "village", "branch", "district"),
+            with = F]
+
+# Reshape wide
+ d <- dcast(d, resp_lino + hhid ~ follow,
+                value.var = names(d))
+
+# Keep only persons with disabilties at baseline --!> TODO!!
+ d <- d[, ]
+```
+
+```{r}
+# Functions
+# =========
+
+# Function to return summary statistics
+summary_cells <- function(v) {
+    # if binary, return n/N and %
+    # if continuous, return the mean and SD
+    if (length(unique(v)) < 4) {
+        paste0(sum(v == 1, na.rm = T), "/",
+               sum(!is.na(v)), " (",
+               round(100 * mean(v, na.rm = T), 0), "%)")
+    } else {
+        paste0(format(mean(v, na.rm = T), big.mark = ",", digits = 0), " (",
+               format(sd(v, na.rm = T), big.mark = ",", digits = 0), ")")
+    }
+}
+
+# Function to estimate the difference between the arms
+effect_estimates <- function(Y, cvars = c("branch_1", "district_1")) {
+    # Fit the model
+    form <- paste0(Y, " ~ treat_1 + (1 | village_1) + ",
+                      paste(cvars, collapse = " + ")) |> as.formula()
+    m <- lmer(form, data = d)
+    s <- summary(m)
+    e <- c(s$coefficients["treat_1", 1], confint(m)["treat_1", ])
+    paste0(format(e[1], big.mark = ",", digits = 0), " (",
+           format(e[2], big.mark = ",", digits = 0), " to ",
+           format(e[3], big.mark = ",", digits = 0), ")")
+}
+``` 
+
+# TABLES
+## TABLE 1: balance checks 
+
+```{r}
+vars <- lapply(c(outcomes, covars), function(X) paste0(X, "_0")) |> unlist()
+table1 <- d[!is.na(treat_0),
+    lapply(.SD, summary_cells),
+    by = treat_0,
+    .SDcols = vars] |>
+    t()
+rownames(table1) <- c("", names(vars))
+table1 |>
+    knitr::kable() |>
+    kableExtra::kable_paper()
+```
+
+## TABLE 2: effect of the intervention 
+
+```{r}  
+# Set names of the outcomes at endline
+ outcomes_1  <- lapply(outcomes, function(X) paste0(X, "_1"))
+
+# Run the regressions
+ effects <- lapply(outcomes_1, effect_estimates) |> unlist()
+
+# Combine into a table
+ table2 <- d[!is.na(treat_1),
+    lapply(.SD, summary_cells),
+    by      = treat_1,
+    .SDcols = unlist(outcomes_1)] |>
+    t() |>
+    cbind(c("", effects))
+ rownames(table2) <- c("", names(outcomes))
+ table2 |>
+    knitr::kable() |>
+    kableExtra::kable_paper()
+```
+

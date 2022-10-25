@@ -44,8 +44,8 @@
 * =============================================================================================== *
 
 * Set directory and filepaths 
-if c(username)==			"Munshi" {
-	cd 						"C:/Dropbox/DIG Uganda//DIG Panel/DIG Endline 1" /*Munshi's Folder*/
+if c(username)==			"calumdavey" {
+	cd 						"/Users/calumdavey/Dropbox/Calum/1.Work/LSHTM/PENDA/Evaluations/2. DIG Uganda/Analysis_files/Git/" /*Munshi's Folder*/
 	}
 	else if c(username)== 	"macbookair" {
 	cd 						"/Users/macbookair/Dropbox/Brac Projects/DIG Uganda/DIG Panel/DIG Endline 1" //Elijah's Folder
