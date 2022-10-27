@@ -11,12 +11,11 @@
 
 
  	Outline: 	This do-file cleans the Uganda DIG data section:
-				- Label variables and values
-				- Fix "other, specify", if applicable
-				- Create variables
-				- Logic checks and assertions
+				- Creates variables
+					- Primary outcomes
+					- Secondary outcomes
 
- 	Input: 		<name>.dta
+ 	Input: 		DIG Household Panel Wide.dta
 
 	Output:		<name>_<date>.dta
 
@@ -156,7 +155,7 @@ use "Data/DIG Household Panel Wide.dta", clear
 * Index PWD Characteristics -- same as above, but different line-number 
 * -------------------------
 	use "Data/DIG Household Panel Wide.dta", clear
-	keep s23_* s24_* s211_* s212_* s213_* s102_* s105_* s106_* hhmemindex_* bhhmemindex_* m_panel_* bmemname_* lino* hhid s216_index follow
+	keep s23_* s24_* s28_* s211_* s212_* s213_* s102_* s105_* s106_* hhmemindex_* bhhmemindex_* m_panel_* bmemname_* lino* hhid s216_index follow
 	* Drop empty and unneeded variables 
 	foreach var of varlist _all {
 		 capture assert mi(`var')
@@ -166,7 +165,7 @@ use "Data/DIG Household Panel Wide.dta", clear
 	 }
 	drop *_check_*
 
-	reshape long s23_ s24_ s211_ s212_ s213_ s102_ s105_ s106_ hhmemindex_ bhhmemindex_ m_panel_ bmemname_ lino, i(hhid follow) j(index_lino)
+	reshape long s23_ s24_ s28_ s211_ s212_ s213_ s102_ s105_ s106_ hhmemindex_ bhhmemindex_ m_panel_ bmemname_ lino, i(hhid follow) j(index_lino)
 	replace index_lino=lino if follow==0 // Order was randomized after baseline, so am recovering baseline order
 	keep if s216_index==index_lino & s216_index!=.
 
@@ -174,7 +173,7 @@ use "Data/DIG Household Panel Wide.dta", clear
 	replace s213_=18 if s213_==17 //Masters
 	replace s213_=. if s213_==99 //Dont know
 
-	 foreach var of varlist s23_ s24_ s211_ s212_ s213_ s102_ s105_ s106_ hhmemindex_ bhhmemindex_ m_panel_ bmemname_  {
+	 foreach var of varlist s23_ s24_ s28_ s211_ s212_ s213_ s102_ s105_ s106_ hhmemindex_ bhhmemindex_ m_panel_ bmemname_  {
 	 gen index_`var'=`var' if s216_index==index_lino
 	 drop `var'
 	 }
@@ -182,6 +181,7 @@ use "Data/DIG Household Panel Wide.dta", clear
 	rename *_ *
 	label var index_s23  "Index PWD is male or female?"
 	label var index_s24  "Index PWD's age"
+	label var index_s28 "Index PWD's difficulty remembering"
 	label var index_s211 "Index PWD's marital status"
 	label var index_s212 "Index PWD's is able to read and write"
 	label var index_s213 "Index PWD's highest level of education"
@@ -198,7 +198,8 @@ use "Data/DIG Household Panel Wide.dta", clear
 		gen index_diff_vision=(vision_combined==3 | vision_combined==4)
 		gen index_diff_hearing=(hearing_combined==3 | hearing_combined==4)
 		gen index_diff_walk=(walking_combined==3 | walking_combined==4)
-		*gen index_diff_remember=(s2_18==3 | s2_18==4)  ----!> WHAT IS THIS?
+		gen index_diff_remember=(s2_18==3 | s2_18==4) if follow==1
+		replace index_diff_remember=(index_s28==3 | index_s28==4) if follow==0 // Was not directly collected from the index person at baseline, recovering value from household roster
 		gen index_diff_selfcare=(s2_11==3 | s2_11==4)
 		gen index_diff_communication=(s2_10==3 | s2_10==4)
 
