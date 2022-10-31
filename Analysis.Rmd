@@ -55,15 +55,15 @@ output:
 
 # Keep only relevant variables
  d <- d[, c(outcomes, covars, "resp_lino", "hhid", "follow",
-            "treat", "village", "branch", "district"),
+            "treat", "village", "branch", "district", "endline",
+            "pwd_hh"),
             with = F]
 
-# Reshape wide
- d <- dcast(d, resp_lino + hhid ~ follow,
-                value.var = names(d))
+# Keep only persons with disabilties at baseline
+ d <- d[endline == 1 & pwd_hh == 1, ]
 
-# Keep only persons with disabilties at baseline --!> TODO!!
- d <- d[, ]
+# Reshape wide
+ d <- dcast(d, resp_lino + hhid ~ follow, value.var = names(d))
 
 # Remove 999
  d[d == 999] <- NA
@@ -78,19 +78,26 @@ summary_cells <- function(v) {
     # if binary, return n/N and %
     # if continuous, return the mean and SD
     if (length(unique(v)) < 4) {
-        paste0(sum(v == 1, na.rm = T), "/",
+        p <- paste0(sum(v == 1, na.rm = T), "/",
                sum(!is.na(v)), " (",
                round(100 * mean(v, na.rm = T), 0), "%)")
     } else {
-        paste0(format(mean(v, na.rm = T), big.mark = ",", digits = 0, scientific = F), " (",
-               format(sd(v, na.rm = T), big.mark = ",", digits = 0, scientific = F), ")")
+        p <- paste0(format(mean(v, na.rm = T), big.mark = ",", digits = 0, scientific = F), " (",  #nolint
+               format(sd(v, na.rm = T), big.mark = ",", digits = 0, scientific = F), ")") #nolint   
     }
+  if (sum(is.na(v)) > 0) {
+    p <- paste0(p, " [", sum(is.na(v)), "]")
+  }
+  return(p)
 }
 
 # Function to estimate the difference between the arms
-effect_estimates <- function(Y, cvars = c("branch_1", "district_1")) {
+effect_estimates <- function(Y,
+                             cvars = c("branch_1", "district_1"),
+                             log_y = FALSE) {
+    if (log_y == TRUE) Y <- log(Y)
     # Fit the model
-    form <- paste0(Y, " ~ treat_1 + (1 | village_1) + ",
+    form <- paste0(Y, " ~ treat_1 + (1 | village_1) + ",  ## cluster == cID 
                       paste(cvars, collapse = " + ")) |> as.formula()
     m <- lmer(form, data = d)
     s <- summary(m)
@@ -101,7 +108,6 @@ effect_estimates <- function(Y, cvars = c("branch_1", "district_1")) {
 }
 ``` 
 
-* Is there a "this person is disabled at baseline" variable that we can use to restrict the data?
 * Note that the treatment variable has been **scrambled** so these are _not_ the trial results
 
 # TABLES
@@ -109,14 +115,21 @@ effect_estimates <- function(Y, cvars = c("branch_1", "district_1")) {
 
 ```{r}
 vars <- lapply(c(outcomes, covars), function(X) paste0(X, "_0")) |> unlist()
+
 table1 <- d[!is.na(treat_0),
-    lapply(.SD, summary_cells),
-    by = treat_0,
-    .SDcols = vars] |>
-    t()
+            lapply(.SD, summary_cells),
+            by = treat_0,
+            .SDcols = vars] |>
+            t()
+
 rownames(table1) <- c("", names(vars))
+
 table1[2:nrow(table1), ] |>
-    knitr::kable(col.names = c("Control", "DIG Arm")) |>
+    knitr::kable(col.names = c(paste0("Control (N=",
+                                      sum(d$pwd_hh_0[d$treat_0 == 0], na.rm = T), ")"), #nolint
+                               paste0("DIG Arm (N=",
+                                      sum(d$pwd_hh_0[d$treat_0 == 1], na.rm = T), ")") #nolint
+                              )) |>
     kableExtra::kable_paper()
 ```
 
@@ -129,9 +142,11 @@ table1[2:nrow(table1), ] |>
 par(mfrow = c(1, 2))
 hist(d$percapitaincome_1[d$treat_0 == 0])
 hist(d$percapitaincome_1[d$treat_0 == 1])
-```
 
-* Should we trim more? 
+par(mfrow = c(1, 2))
+hist(log(d$percapitaincome_1[d$treat_0 == 0]))
+hist(log(d$percapitaincome_1[d$treat_0 == 1]))
+```
 
 ## TABLE 2: effect of the intervention 
 
